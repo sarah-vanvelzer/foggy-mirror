@@ -9,6 +9,7 @@ def foggy_mirror():
     mask = None
     hands = mp.solutions.hands.Hands(max_num_hands=1)
     wipe_size = 40
+    prev_point = None
     
     while cam.isOpened():
         success, frame = cam.read()
@@ -43,10 +44,18 @@ def foggy_mirror():
             y = int(fingertip.y * height)
 
             # Draw white on the mask where the finger is:
-            cv2.circle(mask, (x, y), wipe_size, 255, -1)
+            point = (x, y)
+            if prev_point is not None:
+                cv2.line(mask, prev_point, point, 255, wipe_size * 2)
+            cv2.circle(mask, point, wipe_size, 255, -1)
+            prev_point = point
+
+        else:
+            prev_point = None
 
         # Combine: clear where mask is white, foggy where mask is black:
-        alpha = mask.astype(np.float32) / 255
+        soft_mask = cv2.GaussianBlur(mask, (41, 41), 0)
+        alpha = soft_mask.astype(np.float32) / 255
         alpha = alpha[:, :, np.newaxis]
         output = (frame * alpha + fog * (1 - alpha)).astype(np.uint8)
 
