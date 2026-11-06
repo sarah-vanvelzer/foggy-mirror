@@ -1,11 +1,14 @@
 import cv2
 import numpy as np
+import mediapipe as mp
 
 def foggy_mirror():
     cam = cv2.VideoCapture(0)
     cv2.namedWindow("Foggy Mirror", cv2.WINDOW_NORMAL)
 
     mask = None
+    hands = mp.solutions.hands.Hands(max_num_hands=1)
+    wipe_size = 40
     
     while cam.isOpened():
         success, frame = cam.read()
@@ -26,8 +29,21 @@ def foggy_mirror():
         # Mix them: 60% blurry picture + 40% white:
         fog = cv2.addWeighted(blurred, 0.6, white, 0.4, 0)
 
-        # TEST: pretend we wiped a circle in the top-left
-        cv2.circle(mask, (500, 200), 100, 255, -1)
+        # Find the hand:
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(frame_rgb)
+
+        if results.multi_hand_landmarks:
+            hand = results.multi_hand_landmarks[0]
+            fingertip = hand.landmark[8] # Index
+
+            # Convert 0-1 position to pixels:
+            height, width = frame.shape[:2]
+            x = int(fingertip.x * width)
+            y = int(fingertip.y * height)
+
+            # Draw white on the mask where the finger is:
+            cv2.circle(mask, (x, y), wipe_size, 255, -1)
 
         # Combine: clear where mask is white, foggy where mask is black:
         alpha = mask.astype(np.float32) / 255
