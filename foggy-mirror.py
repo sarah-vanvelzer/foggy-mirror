@@ -4,6 +4,8 @@ import numpy as np
 def foggy_mirror():
     cam = cv2.VideoCapture(0)
     cv2.namedWindow("Foggy Mirror", cv2.WINDOW_NORMAL)
+
+    mask = None
     
     while cam.isOpened():
         success, frame = cam.read()
@@ -11,6 +13,9 @@ def foggy_mirror():
             continue
 
         frame = cv2.flip(frame, 1)
+        # Create the mask one, on the first frame:
+        if mask is None:
+            mask = np.zeros(frame.shape[:2], dtype=np.uint8)
 
         # Blur the frame:
         blurred = cv2.GaussianBlur(frame, (55, 55), 0)
@@ -21,7 +26,15 @@ def foggy_mirror():
         # Mix them: 60% blurry picture + 40% white:
         fog = cv2.addWeighted(blurred, 0.6, white, 0.4, 0)
 
-        cv2.imshow("Foggy Mirror", fog)
+        # TEST: pretend we wiped a circle in the top-left
+        cv2.circle(mask, (500, 200), 100, 255, -1)
+
+        # Combine: clear where mask is white, foggy where mask is black:
+        alpha = mask.astype(np.float32) / 255
+        alpha = alpha[:, :, np.newaxis]
+        output = (frame * alpha + fog * (1 - alpha)).astype(np.uint8)
+
+        cv2.imshow("Foggy Mirror", output)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
