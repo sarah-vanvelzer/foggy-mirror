@@ -2,6 +2,9 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
+def finger_is_up(hand, tip, knuckle): # Returns True if tip above knuckle
+    return hand.landmark[tip].y < hand.landmark[knuckle].y
+
 def foggy_mirror():
     cam = cv2.VideoCapture(0)
     cv2.namedWindow("Foggy Mirror", cv2.WINDOW_NORMAL)
@@ -17,7 +20,7 @@ def foggy_mirror():
             continue
 
         frame = cv2.flip(frame, 1)
-        # Create the mask one, on the first frame:
+        # Create the mask once, on the first frame:
         if mask is None:
             mask = np.zeros(frame.shape[:2], dtype=np.uint8)
 
@@ -36,19 +39,27 @@ def foggy_mirror():
 
         if results.multi_hand_landmarks:
             hand = results.multi_hand_landmarks[0]
-            fingertip = hand.landmark[8] # Index
-
-            # Convert 0-1 position to pixels:
             height, width = frame.shape[:2]
-            x = int(fingertip.x * width)
-            y = int(fingertip.y * height)
 
-            # Draw white on the mask where the finger is:
-            point = (x, y)
-            if prev_point is not None:
-                cv2.line(mask, prev_point, point, 255, wipe_size * 2)
-            cv2.circle(mask, point, wipe_size, 255, -1)
-            prev_point = point
+            middle_up = finger_is_up(hand, 12, 10)
+            ring_up = finger_is_up(hand, 16, 14)
+            pinky_up = finger_is_up(hand, 20, 18)
+
+            if middle_up and ring_up and pinky_up:
+                # OPEN HAND: wipe with whole palm
+                points = np.array([(int(lm.x * width), int(lm.y * height))
+                                   for lm in hand.landmark])
+                hull = cv2.convexHull(points)
+                cv2.fillConvexPoly(mask, hull, 255)
+                prev_point = None
+            else:
+                # POINTING: write with fingertip
+                fingertip = hand.landmark[8]
+                point = (int(fingertip.x * width), int(fingertip.y * height))
+                if prev_point is not None:
+                    cv2.line(mask, prev_point, point, 255, wipe_size * 2)
+                cv2.circle(mask, point, wipe_size, 255, -1)
+                prev_point = point
 
         else:
             prev_point = None
