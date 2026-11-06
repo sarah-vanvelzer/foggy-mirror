@@ -86,8 +86,6 @@ def foggy_mirror():
         alpha = soft_mask.astype(np.float32) / 255
         alpha = alpha[:, :, np.newaxis]
         output = (frame * alpha + fog * (1 - alpha)).astype(np.uint8)
-        cv2.putText(output, f"{mic_volume:.3f}", (30, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
 
         cv2.imshow("Foggy Mirror", output)
         if cv2.waitKey(1) & 0xFF == ord("q"):
