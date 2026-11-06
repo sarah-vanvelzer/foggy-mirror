@@ -1,9 +1,17 @@
 import cv2
 import numpy as np
 import mediapipe as mp
+import sounddevice as sd
 
 def finger_is_up(hand, tip, knuckle): # Returns True if tip above knuckle
     return hand.landmark[tip].y < hand.landmark[knuckle].y
+
+mic_volume = 0.0
+
+def audio_callback(indata, frames, time, status):
+    global mic_volume
+    # Standard way to measure loudness:
+    mic_volume = float(np.sqrt(np.mean(indata**2)))
 
 def foggy_mirror():
     cam = cv2.VideoCapture(0)
@@ -11,8 +19,13 @@ def foggy_mirror():
 
     mask = None
     hands = mp.solutions.hands.Hands(max_num_hands=1)
-    wipe_size = 40
+    wipe_size = 30
     prev_point = None
+
+    # Starting listening:
+    stream = sd.InputStream(callback=audio_callback, channels=1)
+    stream.start()
+    breath_threshold = 0.02
     
     while cam.isOpened():
         success, frame = cam.read()
@@ -64,17 +77,25 @@ def foggy_mirror():
         else:
             prev_point = None
 
+        # Breathing brings back the fog:
+        if mic_volume > breath_threshold:
+            mask = cv2.subtract(mask, 20)
+
         # Combine: clear where mask is white, foggy where mask is black:
         soft_mask = cv2.GaussianBlur(mask, (41, 41), 0)
         alpha = soft_mask.astype(np.float32) / 255
         alpha = alpha[:, :, np.newaxis]
         output = (frame * alpha + fog * (1 - alpha)).astype(np.uint8)
+        cv2.putText(output, f"{mic_volume:.3f}", (30, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
 
         cv2.imshow("Foggy Mirror", output)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     cam.release()
+    stream.stop()
+    stream.close()
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
